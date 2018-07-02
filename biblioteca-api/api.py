@@ -25,8 +25,7 @@ class Usuario(db.Model):
     nombre = db.Column(db.String(64), index=True)
     direccion = db.Column(db.String(120), index=True)
     telefono = db.Column(db.Integer, index=True)
-    prestamos = db.relationship('Prestamo', backref='usuario',
-lazy='dynamic') #<---- relationship
+    prestamos = db.relationship('Prestamo', backref='usuario', lazy='dynamic') #<---- relationship 
 
     def get_url(self):
         """
@@ -39,13 +38,14 @@ lazy='dynamic') #<---- relationship
         """
         genera información representado en formato json, del objeto usuario
         """
+
+
         return {
             'self_url': self.get_url(),
             'nombre': self.nombre,
             'direccion': self.direccion,
             'telefono': self.telefono,
-            'prestamos_url': url_for('get_prestamos', id=self.id,
-_external=True)
+            'prestamos_url': url_for('get_prestamo_usuario', id=self.id, _external=True)
         }
 
     def import_data(self, data):
@@ -57,7 +57,7 @@ _external=True)
             self.direccion = data['direccion']
             self.telefono = data['telefono']
         except KeyError as e:
-            raise ValidationError('Usuario no valido: ausente ...... '+ e.args[0])
+            raise ValidationError('Usuario no valido: ausente ...... ' + e.args[0])
         return self
 
 class Prestamo(db.Model):
@@ -77,15 +77,13 @@ class Prestamo(db.Model):
             'fechaPrestamo': self.fechaPrestamo,
             'fechaDevolucion': self.fechaDevolucion,
             'usuario_url': self.usuario.get_url(),
-            'libro_url': self.libro.get_url(),
+            'libro_url': self.libro.get_url()
             }
 
     def import_data(self, data):
         try:
             self.fechaPrestamo = data['fechaPrestamo']
             self.fechaDevolucion = data['fechaDevolucion']
-            self.usuario_id = data['usuario_url']
-            self.libro_id = data['libro_url']
         except KeyError as e:
             raise ValidationError('Prestamo no valido: prestamo' + e.args[0])
         return self
@@ -96,13 +94,11 @@ class Libro(db.Model):
     titulo = db.Column(db.String(120), index=True)
     isbn = db.Column(db.String(11), index=True)
     editorial = db.Column(db.String(64), index=True)
-    prestamos = db.relationship('Prestamo', backref='libro',
-lazy='dynamic', cascade='all, delete-orphan')
-    autores = db.relationship('Autor', backref='libro',
-lazy='dynamic', cascade='all, delete-orphan')
+    prestamos = db.relationship('Prestamo', backref='libro', lazy='dynamic', cascade='all, delete-orphan')
+    autores = db.relationship('Autor', backref='libro', lazy='dynamic', cascade='all, delete-orphan')
 
     def get_url(self):
-        return url_for('get_libros', id=self.id, _external=True)
+        return url_for('get_prestamo_libro', id=self.id, _external=True)
 
     def export_data(self):
         return {
@@ -110,10 +106,8 @@ lazy='dynamic', cascade='all, delete-orphan')
             'titulo': self.titulo,
             'isbn': self.isbn,
             'editorial': self.editorial,
-            'prestamo_url': url_for('get_prestamos_libro', id=self.id,
-_external=True),
-            'autor_url': url_for('get_autores_libro', id=self.id,
-_external=True)
+            'prestamo_url': url_for('get_prestamo_libro', id=self.id, _external=True),
+            'autor_url': url_for('get_autores_libro', id=self.id, _external=True)
         }
 
     def import_data(self, data):
@@ -133,7 +127,7 @@ class Autor(db.Model):
     nacionalidad = db.Column(db.String(64), index=True)
 
     def get_url(self):
-        return url_for('get_autor', id=self.id, _external=True)
+        return url_for('get_autores', id=self.id, _external=True)
 
     def export_data(self):
         return {
@@ -145,8 +139,8 @@ class Autor(db.Model):
 
     def import_data(self, data):
         try:
-            self.name = int(data['name'])
-            self.nacionalidad = int(data['nacionalidad'])
+            self.name = data['name']
+            self.nacionalidad = data['nacionalidad']
         except KeyError as e:
             raise ValidationError('Autor no valido: perdido' + e.args[0])
         return self
@@ -157,8 +151,7 @@ class Autor(db.Model):
 @app.route('/usuarios/', methods=['GET'])
 def get_usuarios():
     """
-    Función que obtiene la lista de usuarios, con contenido obtenido
-por listas por comprensión
+    Función que obtiene la lista de usuarios, con contenido obtenido por listas por comprensión
     """
     #print('-------------')
     #for usuario in Cliente.query.all():
@@ -178,7 +171,7 @@ def new_usuario():
     print(request.json)
     print(request)
     print(".....request.json......")
-
+    
     usuario.import_data(request.json)
     db.session.add(usuario)
     db.session.commit()
@@ -191,27 +184,61 @@ def get_usuario(id):
     print("solo conslta %s" % Cliente.query.get_or_404(id).export_data())
     print("en formato json: ")
     print (jsonify(Cliente.query.get_or_404(id).export_data()))
-    """
+    """ 
     return jsonify(Usuario.query.get_or_404(id).export_data())
 
 # ----- PRESTAMOS
 @app.route('/prestamos/', methods=['GET'])
 def get_prestamos():
     print("entro aqui!!!")
-    return jsonify({'prestamos': [prestamo.get_url() for prestamo in
-Prestamo.query.all()]})
+    return jsonify({'prestamos': [prestamo.get_url() for prestamo in Prestamo.query.all()]})
 
 @app.route('/prestamos/<int:id>', methods=['GET'])
 def get_prestamo(id):
     return jsonify(Prestamo.query.get_or_404(id).export_data())
 
-@app.route('/prestamos/', methods=['POST'])
-def nuevo_prestamo():
-    prestamo = Prestamo()
+@app.route('/usuarios/<int:id>/prestamos/', methods=['GET'])
+def get_prestamo_usuario(id):
+    usuario = Usuario.query.get_or_404(id)
+    return jsonify({'usuarios': [prestamo.get_url() for prestamo in usuario.prestamos.all()]})
+
+@app.route('/usuarios/<int:id>/prestamos/', methods=['POST'])
+def nuevo_prestamo_usuario(id):
+    usuario = Usuario.query.get_or_404(id)
+    prestamo = Prestamo(usuario=usuario)
     prestamo.import_data(request.json)
     db.session.add(prestamo)
     db.session.commit()
-    return jsonify({}), 201, {'Localizacion': prestamo.get_url()}
+    return jsonify({}), 201, {'Localización': prestamo.get_url()}
+
+@app.route('/libros/<int:id>/prestamos/', methods=['GET'])
+def get_prestamo_libro(id):
+    libro = Libro.query.get_or_404(id)
+    return jsonify({'libros': [prestamo.get_url() for prestamo in libro.prestamos.all()]})
+
+@app.route('/libros/<int:id>/prestamos/', methods=['POST'])
+def nuevo_prestamo_libro(id):
+    libro = Libro.query.get_or_404(id)
+    prestamo = Prestamo(libro=libro)
+    prestamo.import_data(request.json)
+    db.session.add(prestamo)
+    db.session.commit()
+    return jsonify({}), 201, {'Localización': prestamo.get_url()}
+
+@app.route('/prestamos/<int:id>', methods=['PUT'])
+def edit_prestamos(id):
+    prestamo = Prestamo.query.get_or_404(id)
+    prestamo.import_data(request.json)
+    db.session.add(prestamo)
+    db.session.commit()
+    return jsonify({})
+
+@app.route('/prestamos/<int:id>', methods=['DELETE'])
+def delete_prestamo(id):
+    prestamo = Prestamo.query.get_or_404(id)
+    db.session.delete(prestamo)
+    db.session.commit()
+    return jsonify({})
 
 #---- LIBROS
 @app.route('/libros/', methods=['GET'])
@@ -226,16 +253,40 @@ def nuevo_libro():
     db.session.commit()
     return jsonify({}), 201, {'Localizacion': libro.get_url()}
 
-#--- AUTORES
+@app.route('/libros/<int:id>', methods=['PUT'])
+def edit_libros(id):
+    libro = Libro.query.get_or_404(id)
+    libro.import_data(request.json)
+    db.session.add(libro)
+    db.session.commit()
+    return jsonify({})
 
+@app.route('/libros/<int:id>', methods=['DELETE'])
+def delete_libro(id):
+    libro = Libro.query.get_or_404(id)
+    db.session.delete(libro)
+    db.session.commit()
+    return jsonify({})
 
+# ----- AUTORES
+@app.route('/autores/', methods=['GET'])
+def get_autores():
+    print("entro aqui!!!")
+    return jsonify({'autores': [autor.get_url() for autor in Autor.query.all()]})
 
+@app.route('/libros/<int:id>/autores/', methods=['GET'])
+def get_autores_libro(id):
+    libro = Libro.query.get_or_404(id)
+    return jsonify({'libros': [autor.get_url() for autor in libro.autores.all()]})
 
-
-
-
-
-
+@app.route('/libros/<int:id>/autores/', methods=['POST'])
+def nuevo_autor_libro(id):
+    libro = Libro.query.get_or_404(id)
+    autor = Autor(libro=libro)
+    autor.import_data(request.json)
+    db.session.add(autor)
+    db.session.commit()
+    return jsonify({}), 201, {'Localización': autor.get_url()}
 
 if __name__ == '__main__':
     db.create_all()
